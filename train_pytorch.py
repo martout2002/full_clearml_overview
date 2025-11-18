@@ -19,7 +19,7 @@ task = Task.init_with_lineage(
 )
 # Connect hyperparameters as args
 args = {
-    'batch_size': 64,
+    'batch_size': 63,
     'learning_rate': 0.01,
     'epochs': 10,
     'hidden_size': 128,
