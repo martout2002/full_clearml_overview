@@ -10,7 +10,8 @@ from torchvision import datasets, transforms
 
 task = Task.init(
     project_name="Full Overview",
-    task_name="model_training"
+    task_name="model_training",
+    reuse_last_task_id=True
 )
 
 # Connect hyperparameters as args
