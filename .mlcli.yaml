@@ -1,0 +1,14 @@
+project_name: full_clearml_overview
+clearml:
+  api_server: http://localhost:8008
+  web_server: http://localhost:4300
+  files_server: https://files.clear.ml
+  credentials:
+    access_key: 18FLAYYDZK26R5LBQWSFVBANI9NN38
+    secret_key: 1hoZhBhHxeVK3OEKIdyo69fHU5TKEvlCQSectd5WLeotmgiFKnMefUKE-H-iwVv5UAQ
+templates:
+  framework: pytorch
+branching:
+  prefix: exp
+  enable_hash: true
+  hash_length: 6
