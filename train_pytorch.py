@@ -8,11 +8,15 @@ from sklearn.metrics import confusion_matrix
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets, transforms
 
-task = Task.init(
+# task = Task.init(
+#     project_name="Full Overview",
+#     task_name="model_training",
+# )
+
+task = Task.init_with_lineage(
     project_name="Full Overview",
     task_name="model_training",
 )
-
 # Connect hyperparameters as args
 args = {
     'batch_size': 64,
