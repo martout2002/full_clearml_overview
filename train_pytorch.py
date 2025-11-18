@@ -7,10 +7,11 @@ from clearml import Task
 from sklearn.metrics import confusion_matrix
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets, transforms
+import logging
 
 task = Task.init(
     project_name="Full Overview",
-    task_name="model_training"
+    task_name="model_training",
 )
 
 # Writer will output to ./runs/ directory by default
@@ -21,6 +22,8 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
 ])
+
+logging.basicConfig(level=logging.DEBUG)
 
 # Download and load the training data
 trainset = datasets.FashionMNIST('data', train=True, download=True, transform=transform)
@@ -36,7 +39,7 @@ model = nn.Sequential(
 
 # Define the loss function and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.01)
+optimizer = optim.SGD(model.parameters(), lr=0.03)
 
 # Train the model
 for epoch in range(10):
