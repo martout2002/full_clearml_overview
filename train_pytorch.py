@@ -13,6 +13,20 @@ task = Task.init(
     task_name="model_training"
 )
 
+# Connect hyperparameters as args
+args = {
+    'batch_size': 64,
+    'learning_rate': 0.01,
+    'epochs': 10,
+    'hidden_size': 128,
+    'input_size': 784,
+    'output_size': 10,
+    'optimizer': 'SGD',
+    'normalize_mean': 0.5,
+    'normalize_std': 0.5
+}
+args = task.connect(args)
+
 # Writer will output to ./runs/ directory by default
 writer = SummaryWriter()
 
@@ -24,22 +38,22 @@ transform = transforms.Compose([
 
 # Download and load the training data
 trainset = datasets.FashionMNIST('data', train=True, download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=args['batch_size'], shuffle=True)
 
 # Define the neural network model
 model = nn.Sequential(
     nn.Flatten(),
-    nn.Linear(784, 128),
+    nn.Linear(args['input_size'], args['hidden_size']),
     nn.ReLU(),
-    nn.Linear(128, 10)
+    nn.Linear(args['hidden_size'], args['output_size'])
 )
 
 # Define the loss function and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.01)
+optimizer = optim.SGD(model.parameters(), lr=args['learning_rate'])
 
 # Train the model
-for epoch in range(10):
+for epoch in range(args['epochs']):
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
         # Get the inputs
