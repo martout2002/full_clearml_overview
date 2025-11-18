@@ -7,11 +7,10 @@ from clearml import Task
 from sklearn.metrics import confusion_matrix
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets, transforms
-import logging
 
 task = Task.init(
     project_name="Full Overview",
-    task_name="model_training",
+    task_name="model_training"
 )
 
 # Writer will output to ./runs/ directory by default
@@ -22,8 +21,6 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
 ])
-
-logging.basicConfig(level=logging.DEBUG)
 
 # Download and load the training data
 trainset = datasets.FashionMNIST('data', train=True, download=True, transform=transform)
@@ -39,7 +36,7 @@ model = nn.Sequential(
 
 # Define the loss function and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.03)
+optimizer = optim.SGD(model.parameters(), lr=0.01)
 
 # Train the model
 for epoch in range(10):
@@ -94,4 +91,20 @@ plt.colorbar()
 plt.xlabel('Predicted label')
 plt.ylabel('True label')
 plt.title('Confusion matrix')
-plt.show()
+# plt.show()
+
+# Save and log artifacts
+plt.savefig('confusion_matrix.png')
+task.upload_artifact('confusion_matrix', artifact_object='confusion_matrix.png')
+
+# Save and log model
+torch.save(model.state_dict(), 'fashion_mnist_model.pth')
+task.upload_artifact('model_weights', artifact_object='fashion_mnist_model.pth')
+
+# Log test accuracy
+accuracy = sum([1 for true, pred in zip(y_true, y_pred) if true == pred]) / len(y_true)
+task.logger.report_single_value('Test Accuracy', accuracy)
+
+# Close task properly
+task.close()
+print('Task closed and artifacts uploaded')
