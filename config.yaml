@@ -4,7 +4,7 @@
 
 training:
   learning_rate: 0.001
-  batch_size: 32
+  batch_size: 50
   num_epochs: 100
   optimizer: "adam"
   weight_decay: 0.0001
