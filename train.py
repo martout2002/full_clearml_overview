@@ -1,16 +1,12 @@
-"""PyTorch Fashion-MNIST training script with ClearML tracking."""
+"""Training script template.
 
-import matplotlib.pyplot as plt
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
+This is a basic template for training a machine learning model with full tracking.
+Customize this template based on your specific framework and requirements.
+"""
+
 from clearml import Task
-from sklearn.metrics import confusion_matrix
-from torch.utils.tensorboard import SummaryWriter
-from torchvision import datasets, transforms
-from pathlib import Path
 import yaml
+from pathlib import Path
 
 
 def load_config(config_path: str = "config.yaml"):
@@ -26,212 +22,163 @@ def load_config(config_path: str = "config.yaml"):
         return yaml.safe_load(f)
 
 
-def create_model(input_size: int, hidden_size: int, output_size: int):
-    """Create the neural network model.
-    
-    Args:
-        input_size: Size of input layer (784 for Fashion-MNIST)
-        hidden_size: Size of hidden layer
-        output_size: Number of output classes (10 for Fashion-MNIST)
-    
-    Returns:
-        PyTorch sequential model
-    """
-    return nn.Sequential(
-        nn.Flatten(),
-        nn.Linear(input_size, hidden_size),
-        nn.ReLU(),
-        nn.Linear(hidden_size, output_size)
-    )
-
-
-def train_model(model, trainloader, criterion, optimizer, num_epochs, writer, task):
-    """Train the model.
-    
-    Args:
-        model: Neural network model
-        trainloader: Training data loader
-        criterion: Loss function
-        optimizer: Optimizer
-        num_epochs: Number of training epochs
-        writer: TensorBoard writer
-        task: ClearML task
-    """
-    print("Starting training...")
-    for epoch in range(num_epochs):
-        running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
-            inputs, labels = data
-            
-            # Zero the parameter gradients
-            optimizer.zero_grad()
-            
-            # Forward + backward + optimize
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            
-            # Log to TensorBoard
-            writer.add_scalar('Loss/train', loss.item(), epoch * len(trainloader) + i)
-            
-            # Print statistics
-            running_loss += loss.item()
-            if i % 100 == 99:
-                avg_loss = running_loss / 100
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {avg_loss:.3f}')
-                running_loss = 0.0
-    
-    print('Finished training')
-
-
-def evaluate_model(model, testloader):
-    """Evaluate the model on test data.
-    
-    Args:
-        model: Trained neural network model
-        testloader: Test data loader
-    
-    Returns:
-        Tuple of (y_true, y_pred, accuracy)
-    """
-    print("Evaluating model...")
-    y_true = []
-    y_pred = []
-    
-    with torch.no_grad():
-        for data in testloader:
-            images, labels = data
-            outputs = model(images)
-            _, predicted = torch.max(outputs, 1)
-            y_true.extend(labels.tolist())
-            y_pred.extend(predicted.tolist())
-    
-    # Calculate accuracy
-    accuracy = sum([1 for true, pred in zip(y_true, y_pred) if true == pred]) / len(y_true)
-    print(f'Test Accuracy: {accuracy:.4f}')
-    
-    return y_true, y_pred, accuracy
-
-
-def plot_confusion_matrix(y_true, y_pred, classes, task):
-    """Create and log confusion matrix.
-    
-    Args:
-        y_true: True labels
-        y_pred: Predicted labels
-        classes: Class names
-        task: ClearML task
-    """
-    confusion_mat = confusion_matrix(y_true, y_pred)
-    
-    plt.figure(figsize=(10, 8))
-    plt.imshow(confusion_mat, cmap=plt.cm.Blues)
-    plt.xticks(np.arange(len(classes)), classes, rotation=90)
-    plt.yticks(np.arange(len(classes)), classes)
-    plt.colorbar()
-    plt.xlabel('Predicted label')
-    plt.ylabel('True label')
-    plt.title('Confusion matrix')
-    plt.tight_layout()
-    
-    # Save and log to ClearML
-    confusion_matrix_path = 'confusion_matrix.png'
-    plt.savefig(confusion_matrix_path)
-    task.upload_artifact('confusion_matrix', artifact_object=confusion_matrix_path)
-    
-    # Also log as matplotlib figure
-    task.get_logger().report_matplotlib_figure(
-        title="Confusion Matrix",
-        series="",
-        figure=plt.gcf(),
-        iteration=0
-    )
-    
-    plt.close()
-
-
 def main():
-    # Initialize ClearML Task
-    task = Task.init(
-        project_name="Full Overview",
-        task_name="model_training"
-    )
-    
+    # Initialize Task
+    task = Task.current_task()
+    if task is None:
+        print("Warning: No active task found. Creating new task with lineage tracking...")
+        task = Task.init_with_lineage(
+            project_name="full_clearml_test",
+            task_name="training",
+            task_type=Task.TaskTypes.training,
+        )
+        print(f"Task created: {task.id}")
+        if task.parent:
+            print(f"Parent task: {task.parent}")
+        else:
+            print("No parent (first run)")
+
     # Load configuration
     config = load_config()
-    
-    # Connect configuration to ClearML for tracking
-    config = task.connect(config)
-    
-    # Extract hyperparameters
-    training_config = config['training']
-    model_config = config['model']
-    data_config = config['data']
-    
-    batch_size = training_config['batch_size']
-    learning_rate = training_config['learning_rate']
-    num_epochs = training_config['num_epochs']
-    input_size = model_config['input_size']
-    hidden_size = model_config['hidden_size']
-    output_size = model_config['output_size']
-    normalize_mean = data_config['normalize_mean']
-    normalize_std = data_config['normalize_std']
-    
-    print(f"Starting training with:")
+
+    # Connect configuration for tracking
+    # This logs all hyperparameters and allows you to modify them in the UI
+    task.connect(config)
+
+    # Access hyperparameters
+    learning_rate = config['training']['learning_rate']
+    batch_size = config['training']['batch_size']
+    num_epochs = config['training']['num_epochs']
+
+    print(f"\nStarting training with:")
     print(f"  Learning rate: {learning_rate}")
     print(f"  Batch size: {batch_size}")
     print(f"  Epochs: {num_epochs}")
-    print(f"  Hidden size: {hidden_size}")
-    
-    # Initialize TensorBoard writer
-    writer = SummaryWriter()
-    
-    # Define the transformation
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((normalize_mean,), (normalize_std,))
-    ])
-    
-    # Load training data
-    trainset = datasets.FashionMNIST('data', train=True, download=True, transform=transform)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True)
-    
-    # Load test data
-    testset = datasets.FashionMNIST('data', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False)
-    
-    # Create model
-    model = create_model(input_size, hidden_size, output_size)
-    
-    # Define loss function and optimizer
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate)
-    
-    # Train the model
-    train_model(model, trainloader, criterion, optimizer, num_epochs, writer, task)
-    
-    # Evaluate the model
-    classes = ('T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
-               'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot')
-    y_true, y_pred, accuracy = evaluate_model(model, testloader)
-    
-    # Log accuracy to ClearML
-    task.get_logger().report_single_value('Test Accuracy', accuracy)
-    
-    # Create and log confusion matrix
-    plot_confusion_matrix(y_true, y_pred, classes, task)
-    
-    # Save model
-    model_path = 'fashion_mnist_model.pth'
+    print()
+
+    # Get logger for metrics
+    logger = task.get_logger()
+
+    # TODO: Add your data loading code here
+    # Example: train_dataset = load_dataset(...)
+    # Example: val_dataset = load_dataset(...)
+    train_size = 1000  # TODO: Replace with actual dataset size
+    val_size = 200     # TODO: Replace with actual dataset size
+
+    # Log dataset information
+    task.connect_configuration(name="dataset_info", configuration={
+        "train_size": train_size,
+        "val_size": val_size,
+        "data_path": "/path/to/data"  # TODO: Update with actual path
+    })
+
+    # TODO: Add your model initialization here
+    # Example: model = create_model(...)
+    model_info = "Model architecture not yet defined"  # TODO: Replace with str(model)
+
+    # Log model architecture
+    logger.report_text(model_info)
+
+    # Training loop with metric logging
+    for epoch in range(num_epochs):
+        print(f"Epoch {epoch + 1}/{num_epochs}")
+
+        # TODO: Replace these with your actual training code
+        # Example training step:
+        # train_loss = train_one_epoch(model, train_dataset, optimizer, ...)
+        # train_accuracy = evaluate_accuracy(model, train_dataset, ...)
+        # val_loss = validate(model, val_dataset, ...)
+        # val_accuracy = evaluate_accuracy(model, val_dataset, ...)
+
+        # Placeholder values - REPLACE WITH YOUR ACTUAL METRICS
+        train_loss = 0.5 - (epoch * 0.05)  # Simulated decreasing loss
+        val_loss = 0.6 - (epoch * 0.04)
+        train_accuracy = 0.5 + (epoch * 0.05)  # Simulated increasing accuracy
+        val_accuracy = 0.4 + (epoch * 0.04)
+
+        # Log loss metrics
+        logger.report_scalar(
+            title="Loss",
+            series="train",
+            value=train_loss,
+            iteration=epoch
+        )
+        logger.report_scalar(
+            title="Loss",
+            series="validation",
+            value=val_loss,
+            iteration=epoch
+        )
+
+        # Log accuracy metrics
+        logger.report_scalar(
+            title="Accuracy",
+            series="train",
+            value=train_accuracy,
+            iteration=epoch
+        )
+        logger.report_scalar(
+            title="Accuracy",
+            series="validation",
+            value=val_accuracy,
+            iteration=epoch
+        )
+
+        # Optional: Log learning rate schedule if using scheduler
+        # current_lr = optimizer.param_groups[0]['lr']
+        # logger.report_scalar(
+        #     title="Learning Rate",
+        #     series="lr",
+        #     value=current_lr,
+        #     iteration=epoch
+        # )
+
+        # Optional: Log confusion matrix or other plots
+        # import numpy as np
+        # confusion_matrix = np.random.randint(0, 100, size=(10, 10))
+        # logger.report_confusion_matrix(
+        #     title="Confusion Matrix",
+        #     series="validation",
+        #     matrix=confusion_matrix,
+        #     iteration=epoch
+        # )
+
+    print("\nTraining completed!")
+
+    # Save and upload model (PyTorch)
+    # TODO: Uncomment when you have a trained model
+    import torch
+    model_path = "model.pth"
     torch.save(model.state_dict(), model_path)
-    task.upload_artifact('model_weights', artifact_object=model_path)
-    
-    print("Training completed!")
-    
-    # Close TensorBoard writer and ClearML task
-    writer.close()
-    task.close()
+    task.upload_artifact("model_weights", artifact_object=model_path)
+    #
+    # # Or save entire model:
+    # torch.save(model, "full_model.pth")
+    # task.upload_artifact("full_model", artifact_object="full_model.pth")
+
+    # Upload additional artifacts (uncomment as needed)
+    # task.upload_artifact("training_history", artifact_object=history)
+    # task.upload_artifact("preprocessor", artifact_object=preprocessor)
+
+    # If using TensorFlow/Keras instead:
+    # model_path = "saved_model"
+    # model.save(model_path)
+    # task.upload_artifact("saved_model", artifact_object=model_path)
+
+    # If using scikit-learn instead:
+    # import joblib
+    # model_path = "model.pkl"
+    # joblib.dump(model, model_path)
+    # task.upload_artifact("model", artifact_object=model_path)
+
+    # Save final metrics as summary
+    task.set_parameter("final_metrics/train_loss", train_loss)
+    task.set_parameter("final_metrics/val_loss", val_loss)
+    task.set_parameter("final_metrics/train_accuracy", train_accuracy)
+    task.set_parameter("final_metrics/val_accuracy", val_accuracy)
+
+    print(f"\nTask ID: {task.id}")
+    print(f"View results at: {task.get_output_log_web_page()}")
 
 
 if __name__ == "__main__":

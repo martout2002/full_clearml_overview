@@ -1,19 +1,29 @@
-# Hyperparameters Configuration for Fashion-MNIST Training
+# Hyperparameters Configuration
 # This file contains all hyperparameters for your training run.
-# ClearML will automatically track changes to these parameters.
+# The app will automatically track changes to these parameters.
 
 training:
-  batch_size: 64
-  learning_rate: 0.01
-  num_epochs: 10
-  optimizer: "SGD"
+  learning_rate: 0.001
+  batch_size: 32
+  num_epochs: 100
+  optimizer: "adam"
+  weight_decay: 0.0001
 
 model:
-  input_size: 784
-  hidden_size: 128
-  output_size: 10
+  architecture: "resnet50"
+  pretrained: true
+  num_classes: 10
+  dropout: 0.5
 
 data:
-  normalize_mean: 0.5
-  normalize_std: 0.5
-  data_dir: "data"
+  train_path: "data/train"
+  val_path: "data/val"
+  test_path: "data/test"
+  image_size: 224
+  num_workers: 4
+  augmentation: true
+
+logging:
+  log_interval: 10
+  save_interval: 5
+  checkpoint_dir: "checkpoints"
