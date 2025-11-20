@@ -1,0 +1,29 @@
+# Hyperparameters Configuration
+# This file contains all hyperparameters for your training run.
+# ClearML will automatically track changes to these parameters.
+
+training:
+  learning_rate: 0.001
+  batch_size: 128  # Larger batch for faster training (reduce if you have memory issues)
+  num_epochs: 1  # Set to 1 for quick demo (increase for real training)
+  optimizer: "adam"
+  weight_decay: 0.0001
+  momentum: 0.9  # For SGD optimizer
+
+model:
+  architecture: "resnet18"  # Options: resnet18, resnet34, resnet50, resnet101
+  pretrained: true
+  num_classes: 10  # CIFAR-10 has 10 classes
+  dropout: 0.0
+
+data:
+  dataset: "cifar10"  # Built-in dataset for easy testing
+  data_dir: "./data"  # Where to download/cache the dataset
+  image_size: 32  # CIFAR-10 uses 32x32 images
+  num_workers: 2  # Number of data loading workers
+  augmentation: true  # Enable data augmentation
+
+logging:
+  log_interval: 10  # Log metrics every N batches
+  save_interval: 1  # Save checkpoint every N epochs
+  checkpoint_dir: "checkpoints"
