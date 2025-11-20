@@ -18,12 +18,102 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torchvision
 import torchvision.transforms as transforms
-from clearml import Task, Logger
+from clearml import Task
 import yaml
 from pathlib import Path
 from model import create_model
 import matplotlib.pyplot as plt
 import numpy as np
+
+
+def validate_experiment_setup():
+    """Validate git setup before starting training.
+
+    Checks:
+    - Is in a git repository
+    - Current branch (warns if on protected branches)
+    - Uncommitted changes (warns but doesn't block)
+
+    Returns:
+        bool: True to continue, False to abort
+    """
+    import subprocess
+    import sys
+
+    print("\nValidating experiment setup...")
+    print("=" * 60)
+
+    # Check if in git repository
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--git-dir'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print("✓ Git repository detected")
+    except subprocess.CalledProcessError:
+        print("\n⚠️  ERROR: Not in a git repository!")
+        print("   Please run 'pints-cli init' first to set up experiment tracking.")
+        return False
+    except FileNotFoundError:
+        print("\n⚠️  ERROR: Git is not installed!")
+        print("   Git is required for experiment lineage tracking.")
+        return False
+
+    # Get current branch
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        current_branch = result.stdout.strip()
+        print(f"✓ Current branch: {current_branch}")
+
+        # Warn if on protected branches
+        protected_branches = ['main', 'master', 'develop']
+        if current_branch in protected_branches:
+            print(f"\n⚠️  WARNING: You are on the '{current_branch}' branch!")
+            print("   It's recommended to create an experiment branch:")
+            print(f"   git checkout -b exp-{current_branch}")
+            response = input("\n   Continue anyway? (y/N): ").strip().lower()
+            if response not in ['y', 'yes']:
+                print("\nExperiment aborted. Create a new branch and try again.")
+                return False
+    except subprocess.CalledProcessError:
+        print("\n⚠️  WARNING: Could not determine current branch")
+        print("   Proceeding with caution...")
+
+    # Check for uncommitted changes
+    try:
+        result = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        uncommitted = result.stdout.strip()
+        if uncommitted:
+            print("\n⚠️  WARNING: You have uncommitted changes:")
+            # Show first 5 files
+            files = uncommitted.split('\n')[:5]
+            for file_status in files:
+                print(f"   {file_status}")
+            if len(uncommitted.split('\n')) > 5:
+                print(f"   ... and {len(uncommitted.split('\n')) - 5} more files")
+            print("\n   These changes will be tracked in the experiment lineage.")
+            print("   Consider committing them before training for better reproducibility.")
+        else:
+            print("✓ No uncommitted changes")
+    except subprocess.CalledProcessError:
+        print("\n⚠️  WARNING: Could not check git status")
+        print("   Proceeding with caution...")
+
+    print("=" * 60)
+    print("✓ Validation complete - starting training\n")
+    return True
 
 
 def load_config(config_path: str = "config.yaml"):
@@ -204,13 +294,17 @@ def validate(model, val_loader, criterion, device):
 
 
 def main():
+    # Validate experiment setup before starting
+    if not validate_experiment_setup():
+        return
+
     # Initialize Task with lineage tracking and auto-capture enabled
     # This automatically links to the previous experiment with the same name
     task = Task.current_task()
     if task is None:
         print("Creating new task with lineage tracking...")
         task = Task.init_with_lineage(
-            project_name="resnet_testing_2",
+            project_name="test-ml-project",
             task_name="training",
             task_type=Task.TaskTypes.training,
             auto_connect_frameworks={
@@ -225,6 +319,7 @@ def main():
         else:
             print("No parent (first run)")
     
+
     # Load configuration
     config = load_config()
 
@@ -376,35 +471,6 @@ def main():
         if metrics_val['accuracy'] > best_val_acc:
             best_val_acc = metrics_val['accuracy']
             print(f"  New best validation accuracy: {best_val_acc:.2f}%")
-        
-        # Log debug sample images every 5 epochs
-        if (epoch + 1) % 5 == 0:
-            # Get a batch of validation images
-            val_iter = iter(val_loader)
-            sample_images, sample_labels = next(val_iter)
-            sample_images = sample_images.to(device)
-            
-            # Get predictions
-            model.eval()
-            with torch.no_grad():
-                sample_outputs = model(sample_images)
-                _, sample_preds = sample_outputs.max(1)
-            
-            # Log first 8 images as debug samples
-            class_names = ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
-            for i in range(min(8, len(sample_images))):
-                img = sample_images[i].cpu().numpy().transpose(1, 2, 0)
-                # Denormalize
-                img = img * np.array([0.2023, 0.1994, 0.2010]) + np.array([0.4914, 0.4822, 0.4465])
-                img = np.clip(img, 0, 1)
-                
-                title = f"True: {class_names[sample_labels[i]]} | Pred: {class_names[sample_preds[i]]}"
-                logger.report_image(
-                    title="Predictions",
-                    series=f"epoch_{epoch+1}",
-                    iteration=i,
-                    image=img
-                )
 
         print()
 
