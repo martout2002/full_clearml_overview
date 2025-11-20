@@ -18,10 +18,12 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torchvision
 import torchvision.transforms as transforms
-from clearml import Task
+from clearml import Task, Logger
 import yaml
 from pathlib import Path
 from model import create_model
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def load_config(config_path: str = "config.yaml"):
@@ -202,21 +204,38 @@ def validate(model, val_loader, criterion, device):
 
 
 def main():
-    # Initialize Task with lineage tracking
+    # Initialize Task with lineage tracking and auto-capture enabled
     # This automatically links to the previous experiment with the same name
     task = Task.current_task()
     if task is None:
         print("Creating new task with lineage tracking...")
         task = Task.init_with_lineage(
-            project_name="resnet_test",
+            project_name="resnet_testing_2",
             task_name="training",
             task_type=Task.TaskTypes.training,
+            auto_connect_frameworks={
+                'matplotlib': True,  # Auto-capture matplotlib plots
+                'tensorboard': True,  # Auto-capture TensorBoard scalars
+                'pytorch': True,      # Auto-capture PyTorch models
+            }
         )
         print(f"Task created: {task.id}")
         if task.parent:
             print(f"Parent task: {task.parent}")
         else:
             print("No parent (first run)")
+    
+    # Enable automatic logging of all scalars, plots and debug samples
+    from clearml import Logger
+    # Note: Logger.set_default_upload_destination requires a fileserver URI
+    # For default ClearML server, use: Logger.set_default_upload_destination('s3://your-bucket' or 'file://path')
+    # For now, we'll rely on default server settings
+    
+    task.set_project_defaults(
+        auto_connect_arg_parser=True,
+        auto_connect_frameworks=True,
+        auto_resource_monitoring=True
+    )
 
     # Load configuration
     config = load_config()
@@ -300,6 +319,12 @@ def main():
     # Training loop
     print("\nStarting training...\n")
     best_val_acc = 0.0
+    
+    # Lists to track metrics for plotting
+    train_losses = []
+    val_losses = []
+    train_accs = []
+    val_accs = []
 
     for epoch in range(num_epochs):
         print(f"Epoch {epoch + 1}/{num_epochs}")
@@ -318,7 +343,13 @@ def main():
         print(f"  Train Loss: {metrics_train['loss']:.3f} | Train Acc: {metrics_train['accuracy']:.2f}%")
         print(f"  Val Loss: {metrics_val['loss']:.3f} | Val Acc: {metrics_val['accuracy']:.2f}%")
 
-        # Log metrics to ClearML
+        # Track metrics for plotting
+        train_losses.append(metrics_train['loss'])
+        val_losses.append(metrics_val['loss'])
+        train_accs.append(metrics_train['accuracy'])
+        val_accs.append(metrics_val['accuracy'])
+        
+        # Log metrics to ClearML (auto-captured scalars)
         logger.report_scalar(
             title="Loss",
             series="train",
@@ -343,15 +374,84 @@ def main():
             value=metrics_val['accuracy'],
             iteration=epoch
         )
+        
+        # Log learning rate
+        current_lr = optimizer.param_groups[0]['lr']
+        logger.report_scalar(
+            title="Learning Rate",
+            series="lr",
+            value=current_lr,
+            iteration=epoch
+        )
 
         # Save best model
         if metrics_val['accuracy'] > best_val_acc:
             best_val_acc = metrics_val['accuracy']
             print(f"  New best validation accuracy: {best_val_acc:.2f}%")
+        
+        # Log debug sample images every 5 epochs
+        if (epoch + 1) % 5 == 0:
+            # Get a batch of validation images
+            val_iter = iter(val_loader)
+            sample_images, sample_labels = next(val_iter)
+            sample_images = sample_images.to(device)
+            
+            # Get predictions
+            model.eval()
+            with torch.no_grad():
+                sample_outputs = model(sample_images)
+                _, sample_preds = sample_outputs.max(1)
+            
+            # Log first 8 images as debug samples
+            class_names = ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+            for i in range(min(8, len(sample_images))):
+                img = sample_images[i].cpu().numpy().transpose(1, 2, 0)
+                # Denormalize
+                img = img * np.array([0.2023, 0.1994, 0.2010]) + np.array([0.4914, 0.4822, 0.4465])
+                img = np.clip(img, 0, 1)
+                
+                title = f"True: {class_names[sample_labels[i]]} | Pred: {class_names[sample_preds[i]]}"
+                logger.report_image(
+                    title="Predictions",
+                    series=f"epoch_{epoch+1}",
+                    iteration=i,
+                    image=img
+                )
 
         print()
 
     print("Training completed!")
+    
+    # Create and log training plots
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    
+    # Loss plot
+    epochs_range = range(1, num_epochs + 1)
+    axes[0].plot(epochs_range, train_losses, 'b-', label='Train Loss')
+    axes[0].plot(epochs_range, val_losses, 'r-', label='Val Loss')
+    axes[0].set_xlabel('Epoch')
+    axes[0].set_ylabel('Loss')
+    axes[0].set_title('Training and Validation Loss')
+    axes[0].legend()
+    axes[0].grid(True)
+    
+    # Accuracy plot
+    axes[1].plot(epochs_range, train_accs, 'b-', label='Train Acc')
+    axes[1].plot(epochs_range, val_accs, 'r-', label='Val Acc')
+    axes[1].set_xlabel('Epoch')
+    axes[1].set_ylabel('Accuracy (%)')
+    axes[1].set_title('Training and Validation Accuracy')
+    axes[1].legend()
+    axes[1].grid(True)
+    
+    plt.tight_layout()
+    logger.report_matplotlib_figure(
+        title="Training Summary",
+        series="metrics",
+        figure=fig,
+        iteration=num_epochs
+    )
+    plt.close()
 
     # Save and upload model
     Path(config['logging']['checkpoint_dir']).mkdir(exist_ok=True)

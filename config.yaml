@@ -4,8 +4,8 @@
 
 training:
   learning_rate: 0.001
-  batch_size: 128
-  num_epochs: 1  # Small number for quick testing
+  batch_size: 128  # Larger batch for faster training (reduce if you have memory issues)
+  num_epochs: 1  # Set to 1 for quick demo (increase for real training)
   optimizer: "adam"
   weight_decay: 0.0001
   momentum: 0.9  # For SGD optimizer

@@ -6,3 +6,5 @@ runs
 # ML-CLI local storage and credentials
 .mlcli/
 .mlcli.yaml
+# PINTS-CLI credentials
+.pints.yaml

@@ -25,15 +25,18 @@ class ResNetModel(nn.Module):
         """
         super(ResNetModel, self).__init__()
 
-        # Load pretrained ResNet
+        # Determine weights parameter (use modern weights API)
+        weights = "DEFAULT" if pretrained else None
+
+        # Load ResNet with modern API
         if architecture == "resnet18":
-            self.backbone = models.resnet18(pretrained=pretrained)
+            self.backbone = models.resnet18(weights=weights)
         elif architecture == "resnet34":
-            self.backbone = models.resnet34(pretrained=pretrained)
+            self.backbone = models.resnet34(weights=weights)
         elif architecture == "resnet50":
-            self.backbone = models.resnet50(pretrained=pretrained)
+            self.backbone = models.resnet50(weights=weights)
         elif architecture == "resnet101":
-            self.backbone = models.resnet101(pretrained=pretrained)
+            self.backbone = models.resnet101(weights=weights)
         else:
             raise ValueError(f"Unsupported architecture: {architecture}")
 
