@@ -225,18 +225,6 @@ def main():
         else:
             print("No parent (first run)")
     
-    # Enable automatic logging of all scalars, plots and debug samples
-    from clearml import Logger
-    # Note: Logger.set_default_upload_destination requires a fileserver URI
-    # For default ClearML server, use: Logger.set_default_upload_destination('s3://your-bucket' or 'file://path')
-    # For now, we'll rely on default server settings
-    
-    task.set_project_defaults(
-        auto_connect_arg_parser=True,
-        auto_connect_frameworks=True,
-        auto_resource_monitoring=True
-    )
-
     # Load configuration
     config = load_config()
 
